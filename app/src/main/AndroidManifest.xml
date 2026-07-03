@@ -6,7 +6,7 @@
 
     <application
         android:label="Белый список?"
-        android:theme="@style/Theme.Material3.DayNight.NoActionBar"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
