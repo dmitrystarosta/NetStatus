@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -57,7 +58,7 @@ object ProbeConfig {
         Probe("4PDA", "https://4pda.to/favicon.ico"),
         Probe("Drive2", "https://www.drive2.ru/favicon.ico"),
         Probe("Banki.ru", "https://www.banki.ru/favicon.ico"),
-        Probe("МосКостюмер", "https://moskostumer.ru/favicon.ico")
+        Probe("Москостюмер", "https://moskostumer.ru/favicon.ico")
     )
     val defaultC = listOf(
         Probe("Instagram*", "https://www.instagram.com/favicon.ico"),
@@ -102,9 +103,17 @@ object Scanner {
             conn.disconnect()
             ProbeResult(probe, true, System.currentTimeMillis() - start, "HTTP $code")
         } catch (e: Exception) {
-            ProbeResult(probe, false, System.currentTimeMillis() - start,
-                e.javaClass.simpleName)
+            ProbeResult(probe, false, System.currentTimeMillis() - start, humanError(e))
         }
+    }
+
+    // Переводим технические исключения на человеческий язык
+    private fun humanError(e: Exception): String = when (e) {
+        is java.net.UnknownHostException -> "адрес не найден (DNS)"
+        is java.net.SocketTimeoutException -> "нет ответа (таймаут)"
+        is java.net.ConnectException -> "соединение сброшено"
+        is javax.net.ssl.SSLException -> "ошибка шифрования (TLS)"
+        else -> e.javaClass.simpleName
     }
 
     suspend fun scanGroup(probes: List<Probe>): List<ProbeResult> = coroutineScope {
@@ -229,8 +238,9 @@ fun App() {
                 items(state.groupB) { ProbeRow(it) }
             }
             if (state.groupC.isNotEmpty()) {
-                item { GroupHeader("Заблокированные (контроль)") }
+                item { GroupHeader("Заблокированные в РФ (контроль)") }
                 items(state.groupC) { ProbeRow(it) }
+                item { Footnote() }
             }
         }
     }
@@ -271,14 +281,36 @@ fun GroupHeader(title: String) {
 
 @Composable
 fun ProbeRow(r: ProbeResult) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val site = "https://" + java.net.URL(r.probe.url).host
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text((if (r.ok) "🟢 " else "🔴 ") + r.probe.name, fontSize = 15.sp)
+        Text(
+            (if (r.ok) "🟢 " else "🔴 ") + r.probe.name,
+            fontSize = 15.sp,
+            color = Color(0xFF3F51B5),
+            modifier = Modifier.clickable { uriHandler.openUri(site) }
+        )
         Text(
             if (r.ok) "${r.ms} мс" else r.note,
             fontSize = 13.sp, color = Color.Gray
         )
     }
+}
+
+@Composable
+fun Footnote() {
+    Text(
+        "* Instagram принадлежит компании Meta, признанной экстремистской " +
+        "организацией и запрещённой на территории РФ.\n\n" +
+        "Почему ошибки разные: «адрес не найден (DNS)» — оператор не сообщил " +
+        "адрес сайта, будто его не существует; «нет ответа (таймаут)» — запрос " +
+        "ушёл, но ответ так и не вернулся; «соединение сброшено» — подключение " +
+        "разорвано оборудованием оператора. Это три разных механизма блокировки.",
+        fontSize = 12.sp,
+        color = Color.Gray,
+        modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)
+    )
 }
