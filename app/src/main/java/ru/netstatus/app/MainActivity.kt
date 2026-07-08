@@ -59,7 +59,7 @@ data class ScanState(
     val networkType: String = "",
     val verdict: Verdict? = null,
     val groupA: List<ProbeResult> = emptyList(), // белый список / всегда доступные
-    val groupB: List<ProbeResult> = emptyList(), // обычный рунет вне списка
+    val groupB: List<ProbeResult> = emptyList(), // обычный интернет вне списка
     val groupC: List<ProbeResult> = emptyList(), // заблокированные (контроль)
     val configSource: String = "встроенный список"
 )
@@ -77,8 +77,8 @@ object ProbeConfig {
     val defaultB = listOf(
         Probe("Habr", "https://habr.com/favicon.ico"),
         Probe("4PDA", "https://4pda.to/favicon.ico"),
-        Probe("Drive2", "https://www.drive2.ru/favicon.ico"),
-        Probe("Banki.ru", "https://www.banki.ru/favicon.ico")
+        Probe("Google", "https://www.google.com/favicon.ico"),
+        Probe("Википедия", "https://ru.wikipedia.org/favicon.ico")
     )
     val defaultC = listOf(
         Probe("Instagram*", "https://www.instagram.com/favicon.ico"),
@@ -353,7 +353,7 @@ fun App() {
                 items(state.groupA) { ProbeRow(it) }
             }
             if (state.groupB.isNotEmpty()) {
-                item { GroupHeader("Обычный рунет (вне списка)") }
+                item { GroupHeader("Обычный интернет (вне списка)") }
                 items(state.groupB) { ProbeRow(it) }
             }
             if (state.groupC.isNotEmpty()) {
