@@ -482,17 +482,32 @@ fun SettingsScreen(onBack: () -> Unit) {
         LazyColumn(Modifier.weight(1f)) {
             item {
                 EditableGroup(
-                    "Белый список (эталон доступности)", lists.first
+                    "Белый список (эталон доступности)", lists.first,
+                    confirmQuestion = { d ->
+                        "Вы уверены, что сайт $d точно входит в белые списки? " +
+                        "Если это не так, при ограничениях приложение может ошибочно " +
+                        "решить, что интернет пропал целиком."
+                    }
                 ) { apply(it, lists.second, lists.third) }
             }
             item {
                 EditableGroup(
-                    "Обычный интернет (вне списка)", lists.second
+                    "Обычный интернет (вне списка)", lists.second,
+                    confirmQuestion = { d ->
+                        "Вы уверены, что сайт $d обычно НЕ открывается при включённом " +
+                        "белом списке в вашем регионе? Если он есть в списках, " +
+                        "приложение может не заметить ограничения."
+                    }
                 ) { apply(lists.first, it, lists.third) }
             }
             item {
                 EditableGroup(
-                    "Заблокированные в РФ (контроль)", lists.third
+                    "Заблокированные в РФ (контроль)", lists.third,
+                    confirmQuestion = { d ->
+                        "Вы уверены, что сайт $d заблокирован в РФ и не открывается " +
+                        "в обычном интернете без VPN? Иначе приложение может " +
+                        "ошибочно сообщать о включённом VPN."
+                    }
                 ) { apply(lists.first, lists.second, it) }
             }
             item {
@@ -511,9 +526,15 @@ fun SettingsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun EditableGroup(title: String, probes: List<Probe>, onChange: (List<Probe>) -> Unit) {
+fun EditableGroup(
+    title: String,
+    probes: List<Probe>,
+    confirmQuestion: (String) -> String,
+    onChange: (List<Probe>) -> Unit
+) {
     var input by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var pending by remember { mutableStateOf<Probe?>(null) }
 
     Column {
         GroupHeader(title)
@@ -556,8 +577,7 @@ fun EditableGroup(title: String, probes: List<Probe>, onChange: (List<Probe>) ->
                     probes.any { it.url == p.url } -> error = "Такой сайт уже есть в группе"
                     else -> {
                         error = null
-                        onChange(probes + p)
-                        input = ""
+                        pending = p
                     }
                 }
             }) { Text("Добавить") }
@@ -566,6 +586,26 @@ fun EditableGroup(title: String, probes: List<Probe>, onChange: (List<Probe>) ->
             Text(it, color = Color(0xFFC62828), fontSize = 12.sp,
                 modifier = Modifier.padding(top = 2.dp))
         }
+    }
+
+    // Подтверждение: неверно размещённый сайт ломает логику вердиктов,
+    // поэтому перед добавлением переспрашиваем.
+    pending?.let { p ->
+        AlertDialog(
+            onDismissRequest = { pending = null },
+            title = { Text("Добавить ${p.name}?") },
+            text = { Text(confirmQuestion(p.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onChange(probes + p)
+                    pending = null
+                    input = ""
+                }) { Text("Да, добавить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pending = null }) { Text("Отмена") }
+            }
+        )
     }
 }
 
