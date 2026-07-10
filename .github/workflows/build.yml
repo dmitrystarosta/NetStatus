@@ -29,8 +29,12 @@ jobs:
           fi
           chmod +x gradlew
           ./gradlew assembleRelease
+      - name: Rename APK with version
+        run: |
+          VERSION=$(grep 'versionName' app/build.gradle.kts | sed 's/[^0-9.]//g')
+          cp app/build/outputs/apk/release/app-release.apk "WhiteListCheck_v${VERSION}.apk"
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: WhiteListCheck
-          path: app/build/outputs/apk/release/*.apk
+          path: WhiteListCheck_v*.apk
