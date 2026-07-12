@@ -17,10 +17,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -30,7 +32,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -284,6 +288,24 @@ fun cancelBackground(ctx: Context) {
     WorkManager.getInstance(ctx).cancelUniqueWork("netcheck")
 }
 
+// ---------- Подсветка фокуса для пульта (Android TV) ----------
+
+// Выбранный пультом элемент получает заметную рамку и лёгкий фон.
+// На телефоне не проявляется: там фокус не «ходит» стрелками.
+@Composable
+fun Modifier.tvFocusHighlight(shape: Shape = RoundedCornerShape(8.dp)): Modifier {
+    var focused by remember { mutableStateOf(false) }
+    return this
+        .onFocusChanged { focused = it.isFocused || it.hasFocus }
+        .then(
+            if (focused)
+                Modifier
+                    .border(2.dp, Color(0xFF3F51B5), shape)
+                    .background(Color(0x1A3F51B5), shape)
+            else Modifier
+        )
+}
+
 // ---------- UI ----------
 
 class MainActivity : ComponentActivity() {
@@ -373,7 +395,9 @@ fun MainScreen(onOpenSettings: () -> Unit) {
             )
             IconButton(
                 onClick = onOpenSettings,
-                modifier = Modifier.align(Alignment.CenterEnd)
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .tvFocusHighlight(CircleShape)
             ) {
                 Icon(
                     Icons.Filled.Settings,
@@ -399,7 +423,11 @@ fun MainScreen(onOpenSettings: () -> Unit) {
         VerdictCard(state)
 
         Spacer(Modifier.height(16.dp))
-        Button(onClick = { runScan() }, enabled = !state.running) {
+        Button(
+            onClick = { runScan() },
+            enabled = !state.running,
+            modifier = Modifier.tvFocusHighlight(CircleShape)
+        ) {
             Text(if (state.running) "Сканирую…" else "Проверить")
         }
         Spacer(Modifier.height(8.dp))
@@ -413,6 +441,7 @@ fun MainScreen(onOpenSettings: () -> Unit) {
         ) {
             Switch(
                 checked = bgEnabled,
+                modifier = Modifier.tvFocusHighlight(CircleShape),
                 onCheckedChange = { on ->
                     bgEnabled = on
                     prefs.edit().putBoolean("bg_enabled", on).apply()
@@ -467,7 +496,10 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.tvFocusHighlight(CircleShape)
+            ) {
                 Icon(Icons.Filled.ArrowBack, contentDescription = "Назад")
             }
             Text("Списки сайтов", fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -516,7 +548,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                         ProbeStore.reset(context)
                         lists = ProbeStore.load(context)
                     },
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 24.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp, bottom = 24.dp)
+                        .tvFocusHighlight(CircleShape)
                 ) {
                     Text("Сбросить к стандартным спискам")
                 }
@@ -545,7 +580,9 @@ fun EditableGroup(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(p.name, fontSize = 15.sp)
-                IconButton(onClick = {
+                IconButton(
+                    modifier = Modifier.tvFocusHighlight(CircleShape),
+                    onClick = {
                     if (probes.size <= 1) {
                         error = "В группе должен остаться хотя бы один сайт"
                     } else {
@@ -570,7 +607,9 @@ fun EditableGroup(
                 modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(8.dp))
-            Button(onClick = {
+            Button(
+                modifier = Modifier.tvFocusHighlight(CircleShape),
+                onClick = {
                 val p = probeFromDomain(input)
                 when {
                     p == null -> error = "Похоже, это не домен. Пример: pikabu.ru"
@@ -654,7 +693,10 @@ fun ProbeRow(r: ProbeResult) {
             (if (r.ok) "🟢 " else "🔴 ") + r.probe.name,
             fontSize = 15.sp,
             color = Color(0xFF3F51B5),
-            modifier = Modifier.clickable { uriHandler.openUri(site) }
+            modifier = Modifier
+                .tvFocusHighlight()
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+                .clickable { uriHandler.openUri(site) }
         )
         Text(
             if (r.ok) "${r.ms} мс" else r.note,
@@ -695,7 +737,10 @@ fun AppFooter() {
             "Версия $version · проверить обновления",
             fontSize = 12.sp,
             color = Color(0xFF3F51B5),
-            modifier = Modifier.clickable { uriHandler.openUri(REPO_RELEASES) }
+            modifier = Modifier
+                .tvFocusHighlight()
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+                .clickable { uriHandler.openUri(REPO_RELEASES) }
         )
         Spacer(Modifier.height(2.dp))
         Text("© 2026, Dmitry Starosta", fontSize = 12.sp, color = Color.Gray)
