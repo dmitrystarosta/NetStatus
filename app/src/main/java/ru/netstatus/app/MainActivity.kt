@@ -992,18 +992,22 @@ fun VerdictCard(state: ScanState) {
 }
 
 // Круглый значок статуса сайта: галочка (доступен) или крестик (недоступен).
+// Кружок с контурной обводкой и мягкой заливкой — как в согласованном макете.
 @Composable
 fun StatusBadge(ok: Boolean) {
     val c = statusBadgeColors(ok)
     Box(
-        Modifier.size(22.dp).background(c.container, CircleShape),
+        Modifier
+            .size(22.dp)
+            .background(c.container, CircleShape)
+            .border(1.5.dp, c.content.copy(alpha = 0.85f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             if (ok) Icons.Filled.Check else Icons.Filled.Close,
             contentDescription = if (ok) "Доступен" else "Недоступен",
             tint = c.content,
-            modifier = Modifier.size(14.dp)
+            modifier = Modifier.size(13.dp)
         )
     }
 }
