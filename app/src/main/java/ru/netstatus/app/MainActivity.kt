@@ -34,7 +34,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -760,10 +760,12 @@ fun ShareVerdictButton(state: ScanState) {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            Icons.Filled.Share,
+            Icons.Outlined.Share,
             contentDescription = "Поделиться вердиктом",
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(16.dp)
+            // Сдвиг на 1dp влево — оптическая центровка: у глифа «поделиться»
+            // справа два узла, слева один, без сдвига он кажется смещённым вправо.
+            modifier = Modifier.size(16.dp).offset(x = (-1).dp)
         )
     }
 }
