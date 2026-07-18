@@ -1018,26 +1018,27 @@ fun ProbeRow(r: ProbeResult) {
     val site = "https://" + URL(r.probe.url).host
     Row(
         Modifier.fillMaxWidth().padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StatusBadge(r.ok)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                r.probe.name,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .tvFocusHighlight()
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                    .clickable { uriHandler.openUri(site) }
-            )
-        }
+        StatusBadge(r.ok)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            r.probe.name,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .tvFocusHighlight()
+                .padding(horizontal = 4.dp, vertical = 2.dp)
+                .clickable { uriHandler.openUri(site) }
+        )
+        // weight(1f) отдаёт тексту всё оставшееся место, textAlign = End
+        // прижимает к правому краю обе строки, если текст ошибки перенёсся.
         Text(
             if (r.ok) "${r.ms} мс" else r.note,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f).padding(start = 8.dp)
         )
     }
 }
@@ -1074,7 +1075,10 @@ fun Footnote() {
                 "«Адрес не найден (DNS)» — оператор не сообщил адрес сайта, будто " +
                     "его не существует; «нет ответа (таймаут)» — запрос ушёл, но ответ " +
                     "так и не вернулся; «соединение сброшено» — подключение разорвано " +
-                    "оборудованием оператора. Это три разных механизма блокировки.",
+                    "оборудованием оператора. Это три разных механизма блокировки.\n\n" +
+                    "«Ошибка шифрования (TLS)» — защищённое соединение не установилось. " +
+                    "На старых устройствах это обычно означает устаревшие системные " +
+                    "сертификаты, а не блокировку — такой сайт не учитывайте в оценке.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
