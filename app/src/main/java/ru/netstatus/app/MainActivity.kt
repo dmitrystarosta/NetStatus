@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -680,7 +681,7 @@ fun MainScreen(onOpenSettings: () -> Unit) {
 // по тапу пояснение разворачивается и сворачивается.
 @Composable
 fun NetworkChip(networkType: String) {
-    var expanded by remember(networkType) { mutableStateOf(false) }
+    var expanded by rememberSaveable(networkType) { mutableStateOf(false) }
 
     val detail: String?
     val color: Color
@@ -802,7 +803,7 @@ fun ShareVerdictButton(state: ScanState) {
 // Сворачиваемая карточка группы сайтов со строкой-сводкой («3/4 доступны»).
 @Composable
 fun GroupCard(title: String, rows: List<ProbeResult>) {
-    var expanded by remember { mutableStateOf(true) }
+    var expanded by rememberSaveable { mutableStateOf(true) }
     val ok = rows.count { it.ok }
     Surface(
         Modifier.fillMaxWidth().padding(top = 12.dp),
@@ -1144,7 +1145,7 @@ fun ProbeRow(r: ProbeResult) {
 // Пометка про Instagram видна всегда — прятать её нельзя.
 @Composable
 fun Footnote() {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.padding(top = 16.dp, bottom = 8.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
