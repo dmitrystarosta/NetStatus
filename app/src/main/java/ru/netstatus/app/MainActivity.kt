@@ -208,10 +208,13 @@ object Scanner {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return "нет сети"
         return when {
+            // VPN проверяется ПЕРВЫМ: начиная с Android 12 сеть VPN сообщает
+            // и свой «нижележащий» транспорт (Wi-Fi или мобильный), поэтому
+            // при проверке в другом порядке ветка VPN никогда не сработает.
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "VPN"
             caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "мобильный интернет"
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
             caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet (кабель)"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "VPN"
             else -> "другое"
         }
     }
@@ -367,9 +370,22 @@ private val DarkColors = darkColorScheme(
 // Пары «текст + фон» для статусов; свои для светлой и тёмной темы.
 data class StatusColors(val content: Color, val container: Color)
 
+// Единый ответ на вопрос «показывать ли тёмную тему».
+// На Android TV тема всегда тёмная: у многих ТВ нет системного тёмного
+// режима, а белый экран на большой диагонали некомфортен.
+// На телефоне — по системной настройке, как раньше.
+@Composable
+fun isAppDark(): Boolean {
+    val context = LocalContext.current
+    val isTv = remember {
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+    }
+    return isTv || isSystemInDarkTheme()
+}
+
 @Composable
 fun verdictColors(v: Verdict?): StatusColors {
-    val dark = isSystemInDarkTheme()
+    val dark = isAppDark()
     return when (v) {
         Verdict.NORMAL ->
             if (dark) StatusColors(Color(0xFF8BD49C), Color(0xFF1E3B26))
@@ -396,7 +412,7 @@ fun verdictColors(v: Verdict?): StatusColors {
 // Цвета круглого значка статуса сайта (галочка / крестик)
 @Composable
 fun statusBadgeColors(ok: Boolean): StatusColors {
-    val dark = isSystemInDarkTheme()
+    val dark = isAppDark()
     return if (ok) {
         if (dark) StatusColors(Color(0xFF8BD49C), Color(0xFF1E3B26))
         else StatusColors(Color(0xFF1E6B2A), Color(0xFFDDF3DF))
@@ -408,15 +424,15 @@ fun statusBadgeColors(ok: Boolean): StatusColors {
 
 @Composable
 fun warnColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFF2CE6B) else Color(0xFF8A6A00)
+    if (isAppDark()) Color(0xFFF2CE6B) else Color(0xFF8A6A00)
 
 @Composable
 fun dangerColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFF2A099) else Color(0xFFB3241E)
+    if (isAppDark()) Color(0xFFF2A099) else Color(0xFFB3241E)
 
 @Composable
 fun AppTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+    val dark = isAppDark()
     val colors = if (dark) DarkColors else LightColors
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -672,6 +688,12 @@ fun NetworkChip(networkType: String) {
         "нет сети" -> {
             detail = "Проверьте наличие интернета на вашем устройстве."
             color = dangerColor()
+        }
+        "VPN" -> {
+            detail = "Похоже, включён VPN — проверка показывает то, что видно " +
+                "через него, а не напрямую через вашего оператора. Чтобы узнать " +
+                "реальное состояние сети, отключите VPN и повторите проверку."
+            color = warnColor()
         }
         "Wi-Fi" -> {
             detail = "Белые списки обычно действуют на мобильном интернете. " +
