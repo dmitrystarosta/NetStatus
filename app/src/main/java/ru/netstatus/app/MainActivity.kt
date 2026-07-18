@@ -547,7 +547,12 @@ fun MainScreen(onOpenSettings: () -> Unit) {
             )
             IconButton(
                 onClick = onOpenSettings,
-                modifier = Modifier.tvFocusHighlight(CircleShape)
+                // Сдвиг на 12dp вправо компенсирует внутренние поля IconButton
+                // (значок 24dp в области 48dp): видимый край шестерёнки встаёт
+                // на одну вертикаль с кнопкой «поделиться» и краем карточек.
+                modifier = Modifier
+                    .offset(x = 12.dp)
+                    .tvFocusHighlight(CircleShape)
             ) {
                 Icon(
                     Icons.Filled.Settings,
