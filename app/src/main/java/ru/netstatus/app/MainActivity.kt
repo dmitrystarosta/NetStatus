@@ -5,6 +5,9 @@ import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,6 +15,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
+import android.widget.RemoteViews
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -237,6 +241,72 @@ object Scanner {
 
 // ---------- Фоновая проверка (WorkManager) ----------
 
+// ---------- Виджет-индикатор на рабочем столе ----------
+
+// Обновляет все размещённые виджеты по данным из SharedPreferences
+// (last_verdict + last_check_ts). Вызывается после каждой проверки —
+// ручной и фоновой — и по системному расписанию из StatusWidget.
+object StatusWidgetUpdater {
+    fun update(ctx: Context) {
+        val mgr = AppWidgetManager.getInstance(ctx)
+        val ids = mgr.getAppWidgetIds(ComponentName(ctx, StatusWidget::class.java))
+        if (ids.isEmpty()) return  // виджет не добавлен на стол — нечего обновлять
+
+        val prefs = ctx.getSharedPreferences("netstatus", Context.MODE_PRIVATE)
+        val verdictName = prefs.getString("last_verdict", null)
+        val ts = prefs.getLong("last_check_ts", 0L)
+
+        val icon = when (verdictName) {
+            Verdict.NORMAL.name -> R.drawable.widget_logo_normal
+            Verdict.WHITELIST.name -> R.drawable.widget_logo_whitelist
+            Verdict.VPN_OR_ABROAD.name -> R.drawable.widget_logo_vpn
+            Verdict.NO_INTERNET.name -> R.drawable.widget_logo_nonet
+            else -> R.drawable.widget_logo_neutral  // не проверялось / UNKNOWN
+        }
+
+        val ageMin = if (ts == 0L) -1L else (System.currentTimeMillis() - ts) / 60000L
+        val timeText = when {
+            ts == 0L || verdictName == null -> "нажмите"
+            ageMin < 1 -> "только что"
+            ageMin < 60 -> "$ageMin мин назад"
+            ageMin < 24 * 60 -> "${ageMin / 60} ч назад"
+            else -> "давно"
+        }
+        // Честность: данные старше часа считаем устаревшими — виджет бледнеет,
+        // время подсвечивается янтарным (MIUI может убивать фоновый воркер).
+        val stale = ts != 0L && ageMin >= 60
+
+        for (id in ids) {
+            val rv = RemoteViews(ctx.packageName, R.layout.widget_status)
+            rv.setImageViewResource(R.id.widget_icon, icon)
+            rv.setTextViewText(R.id.widget_time, timeText)
+            rv.setInt(R.id.widget_icon, "setImageAlpha", if (stale) 130 else 255)
+            rv.setTextColor(
+                R.id.widget_time,
+                if (stale) 0xFFFFD180.toInt() else 0xFFEAD9CF.toInt()
+            )
+            // Тап по виджету открывает приложение.
+            val pi = PendingIntent.getActivity(
+                ctx, 0, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+            )
+            rv.setOnClickPendingIntent(R.id.widget_root, pi)
+            mgr.updateAppWidget(id, rv)
+        }
+    }
+}
+
+// Приёмник системных событий виджета (добавление на стол, периодическое
+// обновление по updatePeriodMillis из widget_info.xml).
+class StatusWidget : AppWidgetProvider() {
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+        StatusWidgetUpdater.update(context)
+    }
+}
+
 class CheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
         val ctx = applicationContext
@@ -254,7 +324,11 @@ class CheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
         if (prev != null && prev != verdict.name) {
             notifyChange(ctx, verdict)
         }
-        prefs.edit().putString("last_verdict", verdict.name).apply()
+        prefs.edit()
+            .putString("last_verdict", verdict.name)
+            .putLong("last_check_ts", System.currentTimeMillis())
+            .apply()
+        StatusWidgetUpdater.update(ctx)
         return Result.success()
     }
 
@@ -554,8 +628,13 @@ fun MainScreen(
             val rc = Scanner.scanGroup(c)
             val verdict = Scanner.verdict(ra, rb, rc)
 
-            // Запоминаем вердикт, чтобы фоновая проверка сравнивала с актуальным
-            prefs.edit().putString("last_verdict", verdict.name).apply()
+            // Запоминаем вердикт (для сравнения фоновой проверкой) и время
+            // проверки (для виджета), затем обновляем виджет на рабочем столе.
+            prefs.edit()
+                .putString("last_verdict", verdict.name)
+                .putLong("last_check_ts", System.currentTimeMillis())
+                .apply()
+            StatusWidgetUpdater.update(context)
 
             state = ScanState(
                 running = false,
