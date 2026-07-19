@@ -138,10 +138,16 @@ SettingsScreen). Состояние — ScanState через remember/mutableSta
 
 ## Текущее состояние проекта
 
-v0.4.1 выпущена (GitHub Releases). В RuStore опубликована v0.4,
-карточка живая (https://www.rustore.ru/catalog/app/ru.netstatus.app);
-v0.4.1 загружается обновлением. RuMarket и GetApps — подана v0.3.1,
-статусы проверять. Тема на 4PDA создана 17.07, на премодерации.
+v0.4.3 выпущена (GitHub Releases): после v0.4.1 (поделиться, тёмный ТВ,
+VPN-подсказка) вышли багфиксы v0.4.2 (configChanges, rememberSaveable)
+и v0.4.3 (подъём ScanState и CoroutineScope на уровень App — состояние
+и сканирование переживают переход в «Списки сайтов»; НЕ возвращать их
+внутрь MainScreen). В RuStore опубликована v0.4, карточка живая
+(https://www.rustore.ru/catalog/app/ru.netstatus.app); актуальную
+версию загрузить одним обновлением — магазин частыми апдейтами
+осознанно не бомбим. RuMarket и GetApps — подана v0.3.1, статусы
+проверять. Тема на 4PDA создана 17.07, на премодерации. Первый живой
+отклик пользователя (Рустам, RuStore) — запрос виджета-индикатора.
 Детали — в STATE.md и TODO.md.
 
 ## Ближайшие задачи
