@@ -5,3 +5,62 @@
 .widget-section{padding-top:84px}.widget-layout{display:grid;grid-template-columns:1.08fr .72fr;gap:72px;align-items:center}.widget-lead{font-size:1.18rem;color:var(--muted);max-width:690px}.widget-benefits{margin:26px 0 0;padding:0;list-style:none;display:grid;gap:14px}.widget-benefits li{position:relative;padding-left:34px;color:var(--muted)}.widget-benefits li::before{content:"✓";position:absolute;left:0;top:-1px;display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:var(--green);color:var(--green-ink);font-weight:900}.widget-preview{margin:0;background:var(--surface);padding:18px;border-radius:32px;box-shadow:0 24px 60px rgba(67,42,35,.14)}.widget-preview img{width:100%;max-height:590px;object-fit:cover;object-position:center;border-radius:22px}.widget-preview figcaption{padding:14px 8px 2px;text-align:center;color:var(--muted);font-size:.92rem}.widget-states{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:34px}.widget-state{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:24px 18px 22px;border:1px solid var(--line);border-radius:24px;background:#fff;box-shadow:0 12px 30px rgba(67,42,35,.07)}.widget-state img{width:150px;height:auto}.widget-state h3{margin:2px 0 5px;font-size:1.15rem}.widget-state p{margin:0;color:var(--muted);font-size:.95rem}.widget-state:hover{transform:translateY(-3px);transition:transform .2s ease,box-shadow .2s ease;box-shadow:0 18px 36px rgba(67,42,35,.11)}
 @media(max-width:900px){.widget-layout{grid-template-columns:1fr}.widget-preview{max-width:560px;margin:0 auto}.widget-states{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.widget-layout{gap:42px}.widget-states{grid-template-columns:1fr}.widget-state{display:grid;grid-template-columns:110px 1fr;text-align:left;align-items:center}.widget-state img{width:110px}.widget-preview img{max-height:none}}
+
+
+/* Исправления мобильной вёрстки */
+html,body{max-width:100%;overflow-x:hidden}
+.split>* ,.widget-layout>* ,.cta>*{min-width:0}
+.split>div,.widget-copy{overflow-wrap:anywhere}
+.feature-shot{display:block;width:100%;height:auto;max-width:100%;object-fit:contain}
+
+/* Фотография виджета имеет горизонтальные пропорции 700×293 — не растягиваем её */
+.widget-preview{overflow:hidden}
+.widget-preview img{display:block;width:100%;height:auto;max-height:none;aspect-ratio:auto;object-fit:contain;object-position:center}
+
+/* Состояния виджета — фирменные коричневые карточки */
+.widget-state{background:var(--brand);color:#fff;border-color:rgba(255,255,255,.12);overflow:hidden}
+.widget-state p{color:#eadcd5}
+.widget-state img{display:block;width:100%;max-width:180px;height:auto;aspect-ratio:1/1;object-fit:contain;margin:0 auto}
+
+/* Иконка в призыве к установке всегда квадратная */
+.cta>img{display:block;width:112px;height:auto;aspect-ratio:1/1;object-fit:contain}
+
+@media(max-width:560px){
+  .section{width:100%;max-width:100%}
+  .split{gap:42px;overflow:hidden}
+  .steps{padding-left:30px;padding-right:0;margin-right:0}
+  .steps li{padding-left:2px;overflow-wrap:anywhere}
+  .feature-shot{max-width:100%;border-radius:26px}
+
+  .widget-preview{width:100%;padding:12px;border-radius:24px}
+  .widget-preview img{width:100%;height:auto;border-radius:16px}
+
+  .widget-states{
+    display:flex;
+    gap:14px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    margin-right:-20px;
+    padding:4px 20px 18px 0;
+    scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+  }
+  .widget-state{
+    display:flex;
+    flex:0 0 min(78vw,290px);
+    min-width:min(78vw,290px);
+    min-height:350px;
+    padding:22px 18px;
+    text-align:center;
+    align-items:center;
+    justify-content:flex-start;
+    scroll-snap-align:start;
+    border-radius:24px;
+  }
+  .widget-state img{width:180px;max-width:70%;height:180px;flex:0 0 180px}
+  .widget-state h3{margin-top:8px;color:#fff}
+  .widget-state p{font-size:.95rem}
+
+  .cta>img{width:84px;height:auto!important;aspect-ratio:1/1}
+}
