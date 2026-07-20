@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.Font
@@ -61,6 +62,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -94,7 +97,11 @@ data class ScanState(
     val groupA: List<ProbeResult> = emptyList(), // белый список / всегда доступные
     val groupB: List<ProbeResult> = emptyList(), // обычный интернет вне списка
     val groupC: List<ProbeResult> = emptyList(), // заблокированные (контроль)
-    val configSource: String = "встроенный список"
+    val configSource: String = "встроенный список",
+    // Время (мс), когда получен ЭТОТ результат. 0 = экран ещё ничего не показывал.
+    // Нужен, чтобы при возврате в приложение отличить свежий внутренний результат
+    // от более новой проверки, сделанной снаружи (виджет / фон).
+    val checkedAt: Long = 0L
 )
 
 // ---------- Конфигурация проб ----------
@@ -740,9 +747,10 @@ fun MainScreen(
                 // (особенно на MIUI), что замораживало экран в «Сканирую…».
                 if (net == "нет сети") {
                     val mark = { p: Probe -> ProbeResult(p, false, 0L, "нет сети") }
+                    val now = System.currentTimeMillis()
                     prefs.edit()
                         .putString("last_verdict", Verdict.NO_INTERNET.name)
-                        .putLong("last_check_ts", System.currentTimeMillis())
+                        .putLong("last_check_ts", now)
                         .apply()
                     StatusWidgetUpdater.update(context)
                     state = ScanState(
@@ -750,7 +758,8 @@ fun MainScreen(
                         networkType = net,
                         verdict = Verdict.NO_INTERNET,
                         groupA = a.map(mark), groupB = b.map(mark), groupC = c.map(mark),
-                        configSource = source
+                        configSource = source,
+                        checkedAt = now
                     )
                     return@launch
                 }
@@ -762,9 +771,10 @@ fun MainScreen(
 
                 // Запоминаем вердикт (для сравнения фоновой проверкой) и время
                 // проверки (для виджета), затем обновляем виджет на рабочем столе.
+                val now = System.currentTimeMillis()
                 prefs.edit()
                     .putString("last_verdict", verdict.name)
-                    .putLong("last_check_ts", System.currentTimeMillis())
+                    .putLong("last_check_ts", now)
                     .apply()
                 StatusWidgetUpdater.update(context)
 
@@ -773,7 +783,8 @@ fun MainScreen(
                     networkType = net,
                     verdict = verdict,
                     groupA = ra, groupB = rb, groupC = rc,
-                    configSource = source
+                    configSource = source,
+                    checkedAt = now
                 )
             } finally {
                 // Страховка: что бы ни случилось выше (исключение, отмена),
@@ -782,6 +793,33 @@ fun MainScreen(
                 if (state.running) state = state.copy(running = false)
             }
         }
+    }
+
+    // При возврате в приложение сверяемся с последней проверкой в хранилище.
+    // Виджет и фоновый воркер пишут туда свой вердикт, но НЕ трогают то, что
+    // показано на экране (детальные карточки живут в памяти). Если снаружи
+    // была более свежая проверка с ДРУГИМ вердиктом (например, тап по виджету
+    // в авиарежиме дал «нет сети», а на экране висит «всё в норме») — экран
+    // врёт. Тогда молча перезапускаем проверку, чтобы карточки и вердикт
+    // соответствовали реальности. Совпадающий вердикт не трогаем — лишний
+    // скан ни к чему.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val obs = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val storedTs = prefs.getLong("last_check_ts", 0L)
+                val storedV = prefs.getString("last_verdict", null)
+                val cur = state
+                if (!cur.running && cur.verdict != null &&
+                    storedV != null && storedTs > cur.checkedAt &&
+                    storedV != cur.verdict.name
+                ) {
+                    runScan()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
     // Компактная шапка и карточка вердикта закреплены сверху,
