@@ -15,6 +15,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
+import android.text.format.DateFormat
 import android.widget.RemoteViews
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -62,7 +63,9 @@ import androidx.core.view.WindowCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -245,8 +248,31 @@ object Scanner {
 
 // Обновляет все размещённые виджеты по данным из SharedPreferences
 // (last_verdict + last_check_ts). Вызывается после каждой проверки —
-// ручной и фоновой — и по системному расписанию из StatusWidget.
+// ручной, фоновой и запущенной тапом по виджету — а также по системному
+// расписанию и в onResume приложения.
 object StatusWidgetUpdater {
+
+    // Иконка-логотип в цвете последнего вердикта.
+    private fun iconFor(verdictName: String?): Int = when (verdictName) {
+        Verdict.NORMAL.name -> R.drawable.widget_logo_normal
+        Verdict.WHITELIST.name -> R.drawable.widget_logo_whitelist
+        Verdict.VPN_OR_ABROAD.name -> R.drawable.widget_logo_vpn
+        Verdict.NO_INTERNET.name -> R.drawable.widget_logo_nonet
+        else -> R.drawable.widget_logo_neutral  // не проверялось / UNKNOWN
+    }
+
+    // Тап по виджету НЕ открывает приложение, а запускает проверку в фоне
+    // (широковещательное сообщение самому себе → StatusWidget.onReceive).
+    // Так виджет становится кнопкой «перепроверить», а не дублёром иконки.
+    private fun scanPendingIntent(ctx: Context): PendingIntent {
+        val intent = Intent(ctx, StatusWidget::class.java)
+            .setAction(StatusWidget.ACTION_WIDGET_SCAN)
+        return PendingIntent.getBroadcast(
+            ctx, 0, intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
+
     fun update(ctx: Context) {
         val mgr = AppWidgetManager.getInstance(ctx)
         val ids = mgr.getAppWidgetIds(ComponentName(ctx, StatusWidget::class.java))
@@ -255,27 +281,20 @@ object StatusWidgetUpdater {
         val prefs = ctx.getSharedPreferences("netstatus", Context.MODE_PRIVATE)
         val verdictName = prefs.getString("last_verdict", null)
         val ts = prefs.getLong("last_check_ts", 0L)
+        val icon = iconFor(verdictName)
 
-        val icon = when (verdictName) {
-            Verdict.NORMAL.name -> R.drawable.widget_logo_normal
-            Verdict.WHITELIST.name -> R.drawable.widget_logo_whitelist
-            Verdict.VPN_OR_ABROAD.name -> R.drawable.widget_logo_vpn
-            Verdict.NO_INTERNET.name -> R.drawable.widget_logo_nonet
-            else -> R.drawable.widget_logo_neutral  // не проверялось / UNKNOWN
-        }
-
-        val ageMin = if (ts == 0L) -1L else (System.currentTimeMillis() - ts) / 60000L
-        // Максимально короткие подписи: ячейка 1×1 в MIUI узкая,
-        // «только что» и «25 мин назад» в неё не влезали (обрезалось в «тольк…»).
+        // АБСОЛЮТНОЕ время последней проверки («9:15»), а не «N мин назад».
+        // RemoteViews — статический снимок: относительный счётчик сам по себе
+        // не «тикает», ему нужно перерисовываться каждую минуту, а MIUI такие
+        // фоновые обновления душит (отсюда прежнее вечное «сейчас»).
+        // Часы же остаются верны без единого обновления.
         val timeText = when {
             ts == 0L || verdictName == null -> "нажмите"
-            ageMin < 1 -> "сейчас"
-            ageMin < 60 -> "$ageMin мин"
-            ageMin < 24 * 60 -> "${ageMin / 60} ч"
-            else -> "давно"
+            else -> DateFormat.format("H:mm", ts).toString()
         }
-        // Честность: данные старше часа считаем устаревшими — виджет бледнеет,
-        // время подсвечивается янтарным (MIUI может убивать фоновый воркер).
+        // Данные старше часа считаем устаревшими: виджет бледнеет, время
+        // подсвечивается янтарным (MIUI мог убить фоновый воркер).
+        val ageMin = if (ts == 0L) -1L else (System.currentTimeMillis() - ts) / 60000L
         val stale = ts != 0L && ageMin >= 60
 
         for (id in ids) {
@@ -287,18 +306,37 @@ object StatusWidgetUpdater {
                 R.id.widget_time,
                 if (stale) 0xFFFFD180.toInt() else 0xFFEAD9CF.toInt()
             )
-            // Тап по виджету открывает приложение.
-            val pi = PendingIntent.getActivity(
-                ctx, 0, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
-            )
-            rv.setOnClickPendingIntent(R.id.widget_root, pi)
+            rv.setOnClickPendingIntent(R.id.widget_root, scanPendingIntent(ctx))
+            mgr.updateAppWidget(id, rv)
+        }
+    }
+
+    // Мгновенная обратная связь на тап: подпись «проверяю…», цвет иконки
+    // оставляем прежним (перечитываем вердикт из prefs), чтобы логотип
+    // не мигал в нейтральный на время проверки.
+    fun showChecking(ctx: Context) {
+        val mgr = AppWidgetManager.getInstance(ctx)
+        val ids = mgr.getAppWidgetIds(ComponentName(ctx, StatusWidget::class.java))
+        if (ids.isEmpty()) return
+
+        val prefs = ctx.getSharedPreferences("netstatus", Context.MODE_PRIVATE)
+        val icon = iconFor(prefs.getString("last_verdict", null))
+
+        for (id in ids) {
+            val rv = RemoteViews(ctx.packageName, R.layout.widget_status)
+            rv.setImageViewResource(R.id.widget_icon, icon)
+            rv.setInt(R.id.widget_icon, "setImageAlpha", 255)
+            rv.setTextViewText(R.id.widget_time, "проверяю…")
+            rv.setTextColor(R.id.widget_time, 0xFFEAD9CF.toInt())
+            rv.setOnClickPendingIntent(R.id.widget_root, scanPendingIntent(ctx))
             mgr.updateAppWidget(id, rv)
         }
     }
 }
 
-// Приёмник системных событий виджета (добавление на стол, периодическое
-// обновление по updatePeriodMillis из widget_info.xml).
+// Приёмник системных событий виджета: добавление на стол, периодическое
+// обновление по updatePeriodMillis из widget_info.xml, и наш тап-по-виджету
+// (ACTION_WIDGET_SCAN) — запуск разовой проверки в фоне.
 class StatusWidget : AppWidgetProvider() {
     override fun onUpdate(
         context: Context,
@@ -306,6 +344,57 @@ class StatusWidget : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         StatusWidgetUpdater.update(context)
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)  // не ломаем штатную обработку onUpdate/onDeleted
+        if (intent.action == ACTION_WIDGET_SCAN) {
+            // Сразу показываем «проверяю…», затем запускаем разовый воркер.
+            // Без сетевых ограничений (constraint): при отсутствии сети воркер
+            // сам быстро вернёт «нет сети», иначе «проверяю…» висело бы вечно.
+            StatusWidgetUpdater.showChecking(context)
+            val req = OneTimeWorkRequestBuilder<WidgetScanWorker>().build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "widgetscan", ExistingWorkPolicy.REPLACE, req
+            )
+        }
+    }
+
+    companion object {
+        const val ACTION_WIDGET_SCAN = "ru.netstatus.app.WIDGET_SCAN"
+    }
+}
+
+// Разовая проверка, запускаемая тапом по виджету. В отличие от фонового
+// CheckWorker, НИКОГДА не шлёт уведомление (пользователь и так смотрит
+// на виджет) и всегда записывает результат + время и обновляет виджет,
+// включая случай «нет сети» (как ручная проверка в приложении).
+class WidgetScanWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
+    override suspend fun doWork(): Result {
+        val ctx = applicationContext
+        val prefs = ctx.getSharedPreferences("netstatus", Context.MODE_PRIVATE)
+
+        if (Scanner.networkType(ctx) == "нет сети") {
+            prefs.edit()
+                .putString("last_verdict", Verdict.NO_INTERNET.name)
+                .putLong("last_check_ts", System.currentTimeMillis())
+                .apply()
+            StatusWidgetUpdater.update(ctx)
+            return Result.success()
+        }
+
+        val (la, lb, lc) = ProbeStore.load(ctx)
+        val a = Scanner.scanGroup(la)
+        val b = Scanner.scanGroup(lb)
+        val c = Scanner.scanGroup(lc)
+        val verdict = Scanner.verdict(a, b, c)
+
+        prefs.edit()
+            .putString("last_verdict", verdict.name)
+            .putLong("last_check_ts", System.currentTimeMillis())
+            .apply()
+        StatusWidgetUpdater.update(ctx)
+        return Result.success()
     }
 }
 
@@ -351,8 +440,15 @@ class CheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
         nm.createNotificationChannel(
             NotificationChannel("netmode", "Режим сети", NotificationManager.IMPORTANCE_DEFAULT)
         )
+        // Открываем приложение ТЕМ ЖЕ intent'ом, что и иконка в лаунчере
+        // (ACTION_MAIN/LAUNCHER + флаги RESET_TASK_IF_NEEDED): существующая
+        // задача поднимается на передний план без пересоздания — результаты
+        // прошлой проверки сохраняются. Прямой Intent(MainActivity) этого
+        // не гарантировал и открывал экран в сброшенном виде.
+        val launch = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)
+            ?: Intent(ctx, MainActivity::class.java)
         val pi = PendingIntent.getActivity(
-            ctx, 0, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+            ctx, 0, launch, PendingIntent.FLAG_IMMUTABLE
         )
         val notif = android.app.Notification.Builder(ctx, "netmode")
             .setSmallIcon(R.drawable.ic_launcher)
