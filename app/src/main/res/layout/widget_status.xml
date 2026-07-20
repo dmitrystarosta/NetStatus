@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Разметка виджета. ВАЖНО: RemoteViews поддерживает ограниченный набор
-     view (LinearLayout, ImageView, TextView и немногие другие) —
-     Compose и кастомные view здесь недоступны в принципе. -->
+     view (LinearLayout, ImageView, TextView, ProgressBar и немногие
+     другие) — Compose и кастомные view здесь недоступны в принципе. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -20,6 +20,9 @@
         android:src="@drawable/widget_logo_neutral"
         android:contentDescription="Состояние сети"/>
 
+    <!-- Подпись времени последней проверки («9:15» / «нажмите»).
+         Видна по умолчанию; на время проверки скрывается, а вместо неё
+         показывается крутящийся индикатор ниже. -->
     <TextView
         android:id="@+id/widget_time"
         android:layout_width="wrap_content"
@@ -30,4 +33,17 @@
         android:maxLines="1"
         android:ellipsize="end"
         android:text="нажмите"/>
+
+    <!-- Индикатор «идёт проверка»: штатный круговой спиннер, анимируется
+         сам, без обновлений от приложения. По умолчанию скрыт (gone) —
+         на его место встаёт при тапе, а по завершении снова прячется. -->
+    <ProgressBar
+        android:id="@+id/widget_progress"
+        style="?android:attr/progressBarStyleSmall"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginTop="2dp"
+        android:indeterminate="true"
+        android:indeterminateTint="#EAD9CF"
+        android:visibility="gone"/>
 </LinearLayout>
