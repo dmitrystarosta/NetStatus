@@ -64,3 +64,23 @@ html,body{max-width:100%;overflow-x:hidden}
 
   .cta>img{width:84px;height:auto!important;aspect-ratio:1/1}
 }
+
+/* Android TV */
+.tv-section{display:grid;grid-template-columns:.86fr 1.14fr;gap:64px;align-items:center}.tv-lead{font-size:1.16rem;color:var(--muted);max-width:650px}.tv-points{display:grid;gap:14px;margin-top:28px}.tv-points div{padding:18px 20px;border:1px solid var(--line);border-radius:18px;background:#fff}.tv-points strong,.tv-points span{display:block}.tv-points span{margin-top:4px;color:var(--muted)}.tv-visual{position:relative;padding:22px 42px 48px 0}.television{position:relative;z-index:2}.tv-screen{position:relative;padding:12px;border-radius:20px;background:#161311;box-shadow:0 28px 70px rgba(49,40,36,.28),inset 0 0 0 1px rgba(255,255,255,.08)}.tv-screen::after{content:"";position:absolute;inset:12px;border-radius:10px;pointer-events:none;background:linear-gradient(120deg,rgba(255,255,255,.08),transparent 32%)}.tv-screen img{display:block;width:100%;height:auto;aspect-ratio:15/8.5;object-fit:cover;border-radius:10px}.tv-stand{width:32%;height:34px;margin:-1px auto 0;background:linear-gradient(180deg,#2b2522,#171412);clip-path:polygon(25% 0,75% 0,100% 100%,0 100%)}.remote{position:absolute;z-index:3;right:0;bottom:18px;width:58px;height:190px;padding:14px 10px;border-radius:24px;background:linear-gradient(180deg,#272321,#151312);box-shadow:0 18px 35px rgba(49,40,36,.3);display:flex;flex-direction:column;align-items:center;gap:13px}.remote-power{width:12px;height:12px;border:2px solid #d96c58;border-radius:50%}.remote-ring{width:38px;height:38px;border:2px solid #625751;border-radius:50%;box-shadow:inset 0 0 0 8px #1c1917}.remote-button{width:22px;height:8px;border-radius:8px;background:#514944}
+
+/* Равные внутренние отступы у горизонтальных лент и карточек */
+@media(max-width:900px){.tv-section{grid-template-columns:1fr}.tv-visual{max-width:760px;width:100%;margin:0 auto}.privacy,.cta{margin-left:0;margin-right:0;width:auto}}
+@media(max-width:560px){
+  .gallery,.widget-states{width:calc(100% + 40px);margin-left:-20px;margin-right:-20px;padding-left:20px;padding-right:20px;scroll-padding-left:20px;scroll-padding-right:20px}
+  .gallery figure,.widget-state{scroll-snap-align:start}
+  .privacy,.cta{margin-left:0!important;margin-right:0!important;width:100%;max-width:100%}
+  .tv-section{gap:38px}
+  .tv-visual{padding:8px 20px 38px 0}
+  .tv-screen{padding:7px;border-radius:13px}
+  .tv-screen img{border-radius:7px}
+  .tv-screen::after{inset:7px;border-radius:7px}
+  .tv-stand{height:22px}
+  .remote{right:-2px;bottom:8px;width:42px;height:138px;padding:10px 7px;border-radius:18px;gap:9px}
+  .remote-ring{width:28px;height:28px;box-shadow:inset 0 0 0 6px #1c1917}
+  .remote-button{width:16px;height:6px}
+}
