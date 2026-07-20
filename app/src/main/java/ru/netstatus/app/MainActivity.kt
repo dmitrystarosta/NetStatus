@@ -16,6 +16,7 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
 import android.text.format.DateFormat
+import android.view.View
 import android.widget.RemoteViews
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -306,14 +307,19 @@ object StatusWidgetUpdater {
                 R.id.widget_time,
                 if (stale) 0xFFFFD180.toInt() else 0xFFEAD9CF.toInt()
             )
+            // Обычное состояние: видно время, спиннер скрыт (на случай, если
+            // предыдущий кадр был «идёт проверка»).
+            rv.setViewVisibility(R.id.widget_time, View.VISIBLE)
+            rv.setViewVisibility(R.id.widget_progress, View.GONE)
             rv.setOnClickPendingIntent(R.id.widget_root, scanPendingIntent(ctx))
             mgr.updateAppWidget(id, rv)
         }
     }
 
-    // Мгновенная обратная связь на тап: подпись «проверяю…», цвет иконки
-    // оставляем прежним (перечитываем вердикт из prefs), чтобы логотип
-    // не мигал в нейтральный на время проверки.
+    // Мгновенная обратная связь на тап: вместо подписи времени показываем
+    // крутящийся индикатор (штатный ProgressBar анимируется сам). Цвет
+    // иконки оставляем прежним (перечитываем вердикт из prefs), чтобы
+    // логотип не мигал в нейтральный на время проверки.
     fun showChecking(ctx: Context) {
         val mgr = AppWidgetManager.getInstance(ctx)
         val ids = mgr.getAppWidgetIds(ComponentName(ctx, StatusWidget::class.java))
@@ -326,8 +332,8 @@ object StatusWidgetUpdater {
             val rv = RemoteViews(ctx.packageName, R.layout.widget_status)
             rv.setImageViewResource(R.id.widget_icon, icon)
             rv.setInt(R.id.widget_icon, "setImageAlpha", 255)
-            rv.setTextViewText(R.id.widget_time, "проверяю…")
-            rv.setTextColor(R.id.widget_time, 0xFFEAD9CF.toInt())
+            rv.setViewVisibility(R.id.widget_time, View.GONE)
+            rv.setViewVisibility(R.id.widget_progress, View.VISIBLE)
             rv.setOnClickPendingIntent(R.id.widget_root, scanPendingIntent(ctx))
             mgr.updateAppWidget(id, rv)
         }
@@ -349,9 +355,9 @@ class StatusWidget : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)  // не ломаем штатную обработку onUpdate/onDeleted
         if (intent.action == ACTION_WIDGET_SCAN) {
-            // Сразу показываем «проверяю…», затем запускаем разовый воркер.
-            // Без сетевых ограничений (constraint): при отсутствии сети воркер
-            // сам быстро вернёт «нет сети», иначе «проверяю…» висело бы вечно.
+            // Сразу показываем крутящийся индикатор, затем запускаем разовый
+            // воркер. Без сетевых ограничений (constraint): при отсутствии сети
+            // воркер сам быстро вернёт «нет сети», иначе спиннер крутился бы вечно.
             StatusWidgetUpdater.showChecking(context)
             val req = OneTimeWorkRequestBuilder<WidgetScanWorker>().build()
             WorkManager.getInstance(context).enqueueUniqueWork(
