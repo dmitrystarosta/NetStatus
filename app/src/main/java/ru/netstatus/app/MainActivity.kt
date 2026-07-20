@@ -265,11 +265,13 @@ object StatusWidgetUpdater {
         }
 
         val ageMin = if (ts == 0L) -1L else (System.currentTimeMillis() - ts) / 60000L
+        // Максимально короткие подписи: ячейка 1×1 в MIUI узкая,
+        // «только что» и «25 мин назад» в неё не влезали (обрезалось в «тольк…»).
         val timeText = when {
             ts == 0L || verdictName == null -> "нажмите"
-            ageMin < 1 -> "только что"
-            ageMin < 60 -> "$ageMin мин назад"
-            ageMin < 24 * 60 -> "${ageMin / 60} ч назад"
+            ageMin < 1 -> "сейчас"
+            ageMin < 60 -> "$ageMin мин"
+            ageMin < 24 * 60 -> "${ageMin / 60} ч"
             else -> "давно"
         }
         // Честность: данные старше часа считаем устаревшими — виджет бледнеет,
@@ -552,6 +554,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent { AppTheme { App() } }
     }
+
+    // Каждое открытие приложения освежает виджет (третий канал обновления
+    // надписи времени — помимо проверок и системного тика раз в 30 мин).
+    override fun onResume() {
+        super.onResume()
+        StatusWidgetUpdater.update(this)
+    }
 }
 
 @Composable
@@ -599,50 +608,77 @@ fun MainScreen(
     fun runScan() {
         scope.launch {
             state = state.copy(running = true, verdict = null)
+            try {
+                var a = ProbeConfig.defaultA
+                var b = ProbeConfig.defaultB
+                var c = ProbeConfig.defaultC
+                var source = "встроенный список"
 
-            var a = ProbeConfig.defaultA
-            var b = ProbeConfig.defaultB
-            var c = ProbeConfig.defaultC
-            var source = "встроенный список"
-
-            if (ProbeStore.isCustom(context)) {
-                // Пользователь редактировал списки — они в приоритете.
-                val (ca, cb, cc) = ProbeStore.load(context)
-                a = ca; b = cb; c = cc
-                source = "пользовательский список"
-            } else if (ProbeConfig.REMOTE_CONFIG_URL.isNotBlank()) {
-                withContext(Dispatchers.IO) {
-                    try {
-                        val json = URL(ProbeConfig.REMOTE_CONFIG_URL).readText()
-                        ProbeConfig.parse(json)?.let { (na, nb, nc) ->
-                            a = na; b = nb; c = nc
-                            source = "обновлён с сервера"
-                        }
-                    } catch (_: Exception) { }
+                if (ProbeStore.isCustom(context)) {
+                    // Пользователь редактировал списки — они в приоритете.
+                    val (ca, cb, cc) = ProbeStore.load(context)
+                    a = ca; b = cb; c = cc
+                    source = "пользовательский список"
+                } else if (ProbeConfig.REMOTE_CONFIG_URL.isNotBlank()) {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val json = URL(ProbeConfig.REMOTE_CONFIG_URL).readText()
+                            ProbeConfig.parse(json)?.let { (na, nb, nc) ->
+                                a = na; b = nb; c = nc
+                                source = "обновлён с сервера"
+                            }
+                        } catch (_: Exception) { }
+                    }
                 }
+
+                val net = Scanner.networkType(context)
+
+                // Быстрый путь: сети нет — сетевые запросы не запускаем вовсе.
+                // Без сети DNS-разрешение может висеть дольше connect-таймаута
+                // (особенно на MIUI), что замораживало экран в «Сканирую…».
+                if (net == "нет сети") {
+                    val mark = { p: Probe -> ProbeResult(p, false, 0L, "нет сети") }
+                    prefs.edit()
+                        .putString("last_verdict", Verdict.NO_INTERNET.name)
+                        .putLong("last_check_ts", System.currentTimeMillis())
+                        .apply()
+                    StatusWidgetUpdater.update(context)
+                    state = ScanState(
+                        running = false,
+                        networkType = net,
+                        verdict = Verdict.NO_INTERNET,
+                        groupA = a.map(mark), groupB = b.map(mark), groupC = c.map(mark),
+                        configSource = source
+                    )
+                    return@launch
+                }
+
+                val ra = Scanner.scanGroup(a)
+                val rb = Scanner.scanGroup(b)
+                val rc = Scanner.scanGroup(c)
+                val verdict = Scanner.verdict(ra, rb, rc)
+
+                // Запоминаем вердикт (для сравнения фоновой проверкой) и время
+                // проверки (для виджета), затем обновляем виджет на рабочем столе.
+                prefs.edit()
+                    .putString("last_verdict", verdict.name)
+                    .putLong("last_check_ts", System.currentTimeMillis())
+                    .apply()
+                StatusWidgetUpdater.update(context)
+
+                state = ScanState(
+                    running = false,
+                    networkType = net,
+                    verdict = verdict,
+                    groupA = ra, groupB = rb, groupC = rc,
+                    configSource = source
+                )
+            } finally {
+                // Страховка: что бы ни случилось выше (исключение, отмена),
+                // флаг «идёт проверка» снимается — экран не может навсегда
+                // зависнуть в «Сканирую…».
+                if (state.running) state = state.copy(running = false)
             }
-
-            val net = Scanner.networkType(context)
-            val ra = Scanner.scanGroup(a)
-            val rb = Scanner.scanGroup(b)
-            val rc = Scanner.scanGroup(c)
-            val verdict = Scanner.verdict(ra, rb, rc)
-
-            // Запоминаем вердикт (для сравнения фоновой проверкой) и время
-            // проверки (для виджета), затем обновляем виджет на рабочем столе.
-            prefs.edit()
-                .putString("last_verdict", verdict.name)
-                .putLong("last_check_ts", System.currentTimeMillis())
-                .apply()
-            StatusWidgetUpdater.update(context)
-
-            state = ScanState(
-                running = false,
-                networkType = net,
-                verdict = verdict,
-                groupA = ra, groupB = rb, groupC = rc,
-                configSource = source
-            )
         }
     }
 
